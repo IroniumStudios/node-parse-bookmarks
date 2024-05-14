@@ -16,7 +16,7 @@
   "author": "Damon Smith",
   "repository": {
     "type": "git",
-    "url": "https://github.com/sentialx/node-bookmarks-parser.git"
+    "url": "https://github.com/IroniumStudios/node-parse-bookmarks.git"
   },
   "license": "MIT",
   "dependencies": {
