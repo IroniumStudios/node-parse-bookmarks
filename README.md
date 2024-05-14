@@ -1,4 +1,4 @@
-# node-bookmarks-parser
+# node-parse-bookmarks
 
 This library can parse following formats:
 
@@ -6,12 +6,12 @@ This library can parse following formats:
 
 ## Installation
 
-`npm install node-bookmarks-parser`
+`npm install node-parse-bookmarks`
 
 Example:
 
 ```typescript
-import parse from "node-bookmarks-parser";
+import parse from "node-parse-bookmarks";
 
 try {
   const html = ...;
