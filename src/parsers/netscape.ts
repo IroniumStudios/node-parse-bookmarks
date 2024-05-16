@@ -145,3 +145,32 @@ export const parse = (html: string) => {
     'Netscape parser: Bookmarks file malformed: no DL nodes were found',
   );
 };
+
+export const convertToHtml = (bookmarks: Bookmark[]): string => {
+  const generateBookmark = (bookmark: Bookmark): string => {
+    if (bookmark.type === 'bookmark') {
+      return `<a href="${bookmark.url}" add_date="${bookmark.addDate || ''}" icon="${bookmark.icon || ''}">${bookmark.title}</a>`;
+    } else if (bookmark.type === 'folder') {
+      let folderHtml = `<h3 add_date="${bookmark.addDate || ''}" last_modified="${bookmark.lastModified || ''}"`;
+      if (bookmark.nsRoot) {
+        folderHtml += ` ${bookmark.nsRoot}="true"`;
+      }
+      folderHtml += `>${bookmark.title}</h3>`;
+      if (bookmark.children && bookmark.children.length > 0) {
+        folderHtml += '<dl>';
+        bookmark.children.forEach(child => {
+          folderHtml += generateBookmark(child);
+        });
+        folderHtml += '</dl>';
+      }
+      return folderHtml;
+    }
+    return '';
+  };
+
+  let html = '';
+  bookmarks.forEach(bookmark => {
+    html += generateBookmark(bookmark);
+  });
+  return html;
+};
