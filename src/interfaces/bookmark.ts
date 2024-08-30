@@ -1,4 +1,5 @@
 export interface Bookmark {
+  description: any;
   title?: string;
   url?: string;
   type?: 'folder' | 'bookmark';

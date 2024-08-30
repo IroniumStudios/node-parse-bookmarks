@@ -17,20 +17,23 @@ export const canParse = (html: string) => {
     /<dl/i.test(html) &&
     /<\/dl/i.test(html) &&
     /<dt/i.test(html) &&
-    /<a[^<>]href\s*=\s*/i.test(html)
+    /<a[^<>]*href\s*=\s*/i.test(html)
   );
 };
 
 const getNodeData = ($: any, node: any) => {
-  const data: Bookmark = {};
+  const data: Bookmark = {
+    description: undefined,  // Initialize description here
+  };
 
   for (let i = 0; i < node.childNodes.length; i++) {
-    const child = $(node.childNodes[i]);
+    const childNode = node.childNodes[i];
+    const child = $(childNode);
 
-    if (node.childNodes[i].tagName === 'a') {
+    if (childNode.tagName === 'a') {
       data.type = 'bookmark';
-      data.url = child.attr('href');
-      data.title = child.text();
+      data.url = child.attr('href') || '';
+      data.title = child.text() || '';
 
       const addDate = child.attr('add_date');
       if (addDate) {
@@ -41,9 +44,15 @@ const getNodeData = ($: any, node: any) => {
       if (icon) {
         data.icon = icon;
       }
-    } else if (node.childNodes[i].tagName === 'h3') {
+
+      // Feature 1: Support for bookmark descriptions
+      const description = child.attr('description');
+      if (description) {
+        data.description = description;
+      }
+    } else if (childNode.tagName === 'h3') {
       data.type = 'folder';
-      data.title = child.text();
+      data.title = child.text() || '';
 
       const addDate = child.attr('add_date');
       const lastModified = child.attr('last_modified');
@@ -51,7 +60,6 @@ const getNodeData = ($: any, node: any) => {
       if (addDate) {
         data.addDate = addDate;
       }
-
       if (lastModified) {
         data.lastModified = lastModified;
       }
@@ -62,14 +70,14 @@ const getNodeData = ($: any, node: any) => {
       if (child.attr('unfiled_bookmarks_folder')) {
         data.nsRoot = 'unsorted';
       }
-    } else if (node.childNodes[i].tagName === 'dl') {
-      (data as any).__dir_dl = node.childNodes[i];
+    } else if (childNode.tagName === 'dl') {
+      (data as any).__dir_dl = childNode;
     }
   }
 
   if (data.type === 'folder' && !(data as any).__dir_dl) {
-    if (node.nextSibling && node.nextSibling.tagName === 'DD') {
-      const dls = $(node.nextSibling).find('DL');
+    if (node.nextSibling && node.nextSibling.tagName === 'dd') {
+      const dls = $(node.nextSibling).find('dl');
       if (dls.length) {
         (data as any).__dir_dl = dls[0];
       }
@@ -79,7 +87,10 @@ const getNodeData = ($: any, node: any) => {
   return data;
 };
 
-const processDir = ($: any, dir: any, level: number) => {
+// Feature 3: Folder depth limitation
+const processDir = ($: any, dir: any, level: number, maxDepth: number = Infinity) => {
+  if (level > maxDepth) return []; // Limit depth
+
   const children = dir.childNodes;
   let menuRoot: Bookmark = null;
 
@@ -99,10 +110,11 @@ const processDir = ($: any, dir: any, level: number) => {
       if (level === 0 && !itemData.nsRoot) {
         if (!menuRoot) {
           menuRoot = {
-            type: "folder",
+            type: 'folder',
             title: 'Menu',
             children: [],
             nsRoot: 'menu',
+            description: undefined,  // Add missing description property
           };
         }
         if (itemData.type === 'folder' && (itemData as any).__dir_dl) {
@@ -110,6 +122,7 @@ const processDir = ($: any, dir: any, level: number) => {
             $,
             (itemData as any).__dir_dl,
             level + 1,
+            maxDepth,
           );
           delete (itemData as any).__dir_dl;
         }
@@ -120,6 +133,7 @@ const processDir = ($: any, dir: any, level: number) => {
             $,
             (itemData as any).__dir_dl,
             level + 1,
+            maxDepth,
           );
           delete (itemData as any).__dir_dl;
         }
@@ -133,12 +147,33 @@ const processDir = ($: any, dir: any, level: number) => {
   return items;
 };
 
-export const parse = (html: string) => {
+// Feature 2: Sorting bookmarks by date
+const sortBookmarksByDate = (bookmarks: Bookmark[], ascending: boolean = true) => {
+  return bookmarks.sort((a, b) => {
+    const dateA = new Date(a.addDate || '');
+    const dateB = new Date(b.addDate || '');
+    return ascending ? dateA.getTime() - dateB.getTime() : dateB.getTime() - dateA.getTime();
+  });
+};
+
+// Feature 4: Filtering bookmarks by keyword
+export const filterBookmarksByKeyword = (bookmarks: Bookmark[], keyword: string) => {
+  const filteredBookmarks = bookmarks.filter(bookmark => {
+    return (
+      bookmark.title.includes(keyword) ||
+      (bookmark.url && bookmark.url.includes(keyword))
+    );
+  });
+
+  return filteredBookmarks;
+};
+
+export const parse = (html: string, maxDepth: number = Infinity) => {
   const $ = load(html);
   const dls = $('dl');
 
   if (dls.length > 0) {
-    return processDir($, dls[0], 0);
+    return processDir($, dls[0], 0, maxDepth);
   }
 
   throw new Error(
@@ -146,10 +181,15 @@ export const parse = (html: string) => {
   );
 };
 
+// Feature 5: Convert to JSON format
+export const convertToJson = (bookmarks: Bookmark[]): string => {
+  return JSON.stringify(bookmarks, null, 2);
+};
+
 export const convertToHtml = (bookmarks: Bookmark[]): string => {
   const generateBookmark = (bookmark: Bookmark): string => {
     if (bookmark.type === 'bookmark') {
-      return `<a href="${bookmark.url}" add_date="${bookmark.addDate || ''}" icon="${bookmark.icon || ''}">${bookmark.title}</a>`;
+      return `<a href="${bookmark.url}" add_date="${bookmark.addDate || ''}" icon="${bookmark.icon || ''}" description="${bookmark.description || ''}">${bookmark.title}</a>`;
     } else if (bookmark.type === 'folder') {
       let folderHtml = `<h3 add_date="${bookmark.addDate || ''}" last_modified="${bookmark.lastModified || ''}"`;
       if (bookmark.nsRoot) {
